@@ -25,7 +25,7 @@ function TakeNewUserInfo() {
       const token = localStorage.getItem('authToken');
 
       // Send the request with the token
-      const storeData = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/account/newuser`, {
+      const storeData = await axios.post("https://guessmydoodle-server.vercel.app/account/newuser", {
         nickname, age, gender
       }, {
         headers: {
