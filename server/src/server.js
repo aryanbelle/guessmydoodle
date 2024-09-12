@@ -15,14 +15,24 @@ const Rooms = require("./models/Rooms.js");
 require('dotenv').config();
 
 
-app.use(cors({
-  origin: [process.env.REACT_APP_FRONTEND_URL]
-}))
+app.use(
+  cors({
+    origin: ["https://guessmydoodle.vercel.app"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: ["https://guessmydoodle.vercel.app"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
 connectToDatabase();
 
