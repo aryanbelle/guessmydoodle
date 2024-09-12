@@ -7,7 +7,10 @@ export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
 
     useEffect(() => {
-        const socketInstance = io(process.env.REACT_APP_BACKEND_URL); // Adjust URL as needed
+        const socketInstance =  io(process.env.REACT_APP_BACKEND_URL, {
+  withCredentials: true,
+});
+ // Adjust URL as needed
         setSocket(socketInstance);
 
         return () => {
