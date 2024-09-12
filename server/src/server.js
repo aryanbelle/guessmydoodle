@@ -17,7 +17,7 @@ require('dotenv').config();
 
 app.use(
   cors({
-    origin: `http://localhost:${process.env.PORT}`,
+    origin: process.env.REACT_APP_FRONTEND_URL,
     credentials: true,
   })
 );
@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
-    origin: `http://localhost:${process.env.PORT}`,
+    origin: process.env.REACT_APP_FRONTEND_URL,
     methods: ["GET", "POST"],
     credentials: true,
   },
