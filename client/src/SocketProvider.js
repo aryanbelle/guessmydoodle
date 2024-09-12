@@ -7,7 +7,7 @@ export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
 
     useEffect(() => {
-        const socketInstance =  io(process.env.REACT_APP_BACKEND_URL, {
+        const socketInstance =  io("https://guessmydoodle.vercel.app", {
   withCredentials: true,
 });
  // Adjust URL as needed
