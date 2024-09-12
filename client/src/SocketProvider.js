@@ -7,7 +7,7 @@ export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
 
     useEffect(() => {
-        const socketInstance =  io("https://guessmydoodle.vercel.app");
+        const socketInstance =  io("https://guessmydoodle-server.vercel.app");
  // Adjust URL as needed
         setSocket(socketInstance);
 
