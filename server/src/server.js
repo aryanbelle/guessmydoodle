@@ -15,22 +15,12 @@ const Rooms = require("./models/Rooms.js");
 require('dotenv').config();
 
 
-app.use(
-  cors({
-    origin: process.env.REACT_APP_FRONTEND_URL,
-    credentials: true,
-  })
-);
+app.use(cors())
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const io = new Server(server, {
-  cors: {
-    origin: process.env.REACT_APP_FRONTEND_URL,
-    credentials: true,
-  },
-});
+const io = new Server(server);
 
 connectToDatabase();
 
