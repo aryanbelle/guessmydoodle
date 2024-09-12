@@ -22,7 +22,7 @@ function SignIn() {
             const idToken = await result.user.getIdToken();
             localStorage.setItem('authToken', idToken);
 
-            const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/auth/authentication`, {}, {
+            const response = await axios.post("https://guessmydoodle-server.vercel.app/auth/authentication", {}, {
                 headers: {
                     Authorization: `Bearer ${idToken}`
                 }
@@ -49,7 +49,7 @@ function SignIn() {
             const idToken = await result.user.getIdToken();
             localStorage.setItem("authToken", idToken);
 
-            const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/auth/authentication`, {}, {
+            const response = await axios.post("https://guessmydoodle-server.vercel.app/auth/authentication", {}, {
                 headers: {
                     Authorization: `Bearer ${idToken}`
                 }
