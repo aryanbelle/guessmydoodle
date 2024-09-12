@@ -15,7 +15,9 @@ const Rooms = require("./models/Rooms.js");
 require('dotenv').config();
 
 
-app.use(cors())
+app.use(cors({
+  origin: [process.env.REACT_APP_FRONTEND_URL]
+}))
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
