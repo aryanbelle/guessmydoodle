@@ -17,7 +17,7 @@ require('dotenv').config();
 
 app.use(
   cors({
-    origin: ["https://guessmydoodle.vercel.app"],
+    origin: '*',
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -28,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
-    origin: ["https://guessmydoodle.vercel.app"],
+    origin: '*',
     methods: ["GET", "POST"],
     credentials: true,
   },
