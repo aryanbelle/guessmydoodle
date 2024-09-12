@@ -22,7 +22,7 @@ function SignIn() {
             const idToken = await result.user.getIdToken();
             localStorage.setItem('authToken', idToken);
 
-            const response = await axios.post('http://localhost:5000/auth/authentication', {}, {
+            const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/auth/authentication`, {}, {
                 headers: {
                     Authorization: `Bearer ${idToken}`
                 }
@@ -48,7 +48,7 @@ function SignIn() {
             const idToken = await result.user.getIdToken();
             localStorage.setItem("authToken", idToken);
 
-            const response = await axios.post('http://localhost:5000/auth/authentication', {}, {
+            const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/auth/authentication`, {}, {
                 headers: {
                     Authorization: `Bearer ${idToken}`
                 }

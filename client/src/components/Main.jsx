@@ -8,7 +8,7 @@ import axios from 'axios';
 import { useAuth } from '../lib/AuthProvider.js';
 import { signOut } from 'firebase/auth';
 import { useSocket } from "../SocketProvider.js";
-// const socket = io("http://localhost:5000");
+
 
 function Main() {
   const navigate = useNavigate();

@@ -12,9 +12,12 @@ const server = http.createServer(app);
 const lodash = require('lodash');
 const Rooms = require("./models/Rooms.js");
 
+require('dotenv').config();
+
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: `http://localhost:${process.env.PORT}`,
     credentials: true,
   })
 );
@@ -24,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: `http://localhost:${process.env.PORT}`,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -263,12 +266,12 @@ io.on("connection", async (client) => {
     let currentPlayer = players[_currentPlayerIndex];
     io.in(roomId).emit('currentPlayer', { _currentPlayer: currentPlayer.nickname });
 
-  
+
 
     io.to(roomId).emit("request-player-authKey");
 
     client.once("client-auth-key", (userAuthkey) => {
-   
+
       if ((rooms[roomId][userAuthkey] === currentPlayer.nickname && (!currentPlayer.isTurnOver))) {
         client.emit("start-drawing", { word, roomId });
       } else {
@@ -293,7 +296,7 @@ io.on("connection", async (client) => {
 
       if (_room[userAuthkey]) {
 
- 
+
 
 
         if (message.toLowerCase() === word.toLowerCase() && !(_guessedPlayers.includes(_room[userAuthkey]))) {
@@ -360,7 +363,7 @@ io.on("connection", async (client) => {
 
       io.in(roomId).emit('game-ended', { roomId, players_score_data, message: 'Game ended' })
 
-    return;
+      return;
     }
 
 

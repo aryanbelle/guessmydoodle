@@ -13,7 +13,7 @@ import axios from "axios";
 import { useSocket } from "../SocketProvider.js";
 import { useAuth } from '../lib/AuthProvider.js';
 
-// const socket = io("http://localhost:5000");
+
 
 function Room() {
   const { roomId } = useParams();

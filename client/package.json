@@ -8,6 +8,7 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.7.5",
     "classnames": "^2.5.1",
+    "dotenv": "^16.4.5",
     "firebase": "^10.13.0",
     "konva": "^9.3.14",
     "notistack": "^3.0.1",
