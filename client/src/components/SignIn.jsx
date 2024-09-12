@@ -27,9 +27,10 @@ function SignIn() {
                     Authorization: `Bearer ${idToken}`
                 }
             });
-            if (response.data.isSignedIn) {
+            if (response.data.isSignedIn && response.data.success) {
                 navigate("/main");
-            } else {
+            }
+            else if (response.data.success) {
                 navigate("/newuserinfo");
             }
         } catch (error) {
