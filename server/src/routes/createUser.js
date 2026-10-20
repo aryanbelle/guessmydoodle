@@ -1,43 +1,29 @@
-const express = require("express");
-const Router = express.Router();
+const router = require("express").Router();
 const User = require("../models/UserModel");
 const verifyIdToken = require("../services/firebase");
 
-Router.post("/newuser", async (req, res) => {
+router.post("/newuser", async (req, res) => {
+  const authorization = req.headers.authorization || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  const nickname = String(req.body?.nickname || "").replace(/[<>\u0000-\u001f]/g, "").trim().slice(0, 24);
+  const age = Number(req.body?.age);
+  if (!token) return res.status(401).json({ success: false, message: "Authentication required" });
+  if (!nickname || !Number.isInteger(age) || age < 8 || age > 100) {
+    return res.status(400).json({ success: false, message: "Enter a nickname and a valid age." });
+  }
+
   try {
-    // Access the JSON data directly from req.body
-    const { nickname, age } = req.body;
-    const reqToken = req.headers.authorization?.split(" ")[1];
-
-    if (reqToken) {
-      // Verify the Firebase ID token
-      const decodedToken = await verifyIdToken(reqToken);
-      const email = decodedToken.email;
-
-      if (email) {
-        // Check if the user already exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-          return res
-            .status(401)
-            .json({ success: false, message: "User already exists!" });
-        }
-
-        // Create a new user if they don't exist
-        const newUser = new User({ nickname, email, age });
-        await newUser.save();
-        return res
-          .status(201)
-          .json({ success: true, message: "User account created!" });
-      }
-    }
-
-    // If token is not provided or email is not found in the token
-    return res.status(400).json({ success: false, message: "Invalid token!" });
+    const decoded = await verifyIdToken(token);
+    if (!decoded.email) return res.status(400).json({ success: false, message: "A verified email is required." });
+    const existing = await User.findOne({ $or: [{ email: decoded.email }, { nickname }] }).lean();
+    if (existing) return res.status(409).json({ success: false, message: "That account or nickname already exists." });
+    await User.create({ nickname, email: decoded.email, age });
+    return res.status(201).json({ success: true, message: "User account created!" });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Failed to create User!" });
+    if (error.code === 11000) return res.status(409).json({ success: false, message: "That account or nickname already exists." });
+    console.error("Account creation failed:", error.message);
+    return res.status(500).json({ success: false, message: "Failed to create user account." });
   }
 });
 
-module.exports = Router;
+module.exports = router;

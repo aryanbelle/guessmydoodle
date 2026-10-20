@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from "react";
-import io from "socket.io-client";
 import { useNavigate } from "react-router-dom";
-import { useTheme } from "../ThemeContext";
-import { SnackbarProvider, enqueueSnackbar } from 'notistack'
-import { auth } from "../lib/firebaseConfig";
-import axios from 'axios';
-import { useAuth } from '../lib/AuthProvider.js';
-import { signOut } from 'firebase/auth';
+import { SnackbarProvider, enqueueSnackbar } from "notistack";
+import { useAuth } from "../lib/AuthProvider.js";
 import { useSocket } from "../SocketProvider.js";
-
+import { useTheme } from "../ThemeContext";
 
 function Main() {
   const navigate = useNavigate();
@@ -22,417 +17,101 @@ function Main() {
   const [rooms, setRooms] = useState([]);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  // const [myPfp, setMyPfp] = useState(null);
   const { theme, changeTheme } = useTheme();
   const [myNickname, setMyNickname] = useState("");
-  const { currentUser } = useAuth();
-
+  const { currentUser, signOut } = useAuth();
   const socket = useSocket();
 
   useEffect(() => {
-
-    if (socket && currentUser) {
-      socket.connect();
-      const uIdToken = localStorage.getItem('authToken');
-      socket.emit('request-nickname', { userIdToken: uIdToken });
-
-      socket.on('your-nickname', (nickname) => {
-        setMyNickname(nickname);
-      });
-
-      socket.on('fetchRooms', (rooms) => {
-        socket.connect();
-        const activeRooms = Object.values(rooms).filter(
-          (room) => room.creator && room.users.length > 0
-        );
-        setRooms(activeRooms);
-      });
-
-      socket.on('deleteRoom', (roomId) => {
-        setRooms((prevRooms) => prevRooms.filter((room) => room.id !== roomId));
-      });
-
-      socket.on('roomCreated', (room) => {
-        setRooms((prevRooms) => [...prevRooms, room]);
-        navigate(`/room/${room.id}`);
-      });
-
-      socket.on("roomJoined", ({ id, userAuthkey, nickname }) => {
-        navigate(`/room/${id}`)
-      });
-
-      socket.on('roomCreateError', (data) => {
-        enqueueSnackbar(data.message, { variant: 'error', anchorOrigin: { vertical: 'top', horizontal: 'center' }, autoHideDuration: 2000 });
-      });
-
-      socket.on('roomJoinError', (data) => {
-        enqueueSnackbar(data.message, { variant: 'error', anchorOrigin: { vertical: 'top', horizontal: 'center' }, autoHideDuration: 2000 });
-      });
-
-      socket.on('disconnect', () => {
-        socket.connect();
-      });
-
-    } else {
-      enqueueSnackbar('Unauthorized user', { variant: 'error', anchorOrigin: { vertical: 'top', horizontal: 'center' }, autoHideDuration: 2000 });
-    }
-    // };
-
-    // setupSocket();
-
-    // Cleanup function to remove socket listeners and disconnect
+    if (!socket || !currentUser) return undefined;
+    const onRooms = (roomData) => setRooms(Object.values(roomData).filter((room) => room.creator && room.users.length > 0));
+    const onDelete = (roomId) => setRooms((previous) => previous.filter((room) => room.id !== roomId));
+    const savePendingPassword = (roomId) => {
+      const pendingPassword = sessionStorage.getItem("pending-created-room-password");
+      if (pendingPassword !== null) {
+        sessionStorage.setItem(`room-password:${roomId}`, pendingPassword);
+        sessionStorage.removeItem("pending-created-room-password");
+      }
+    };
+    const onRoom = (room) => {
+      savePendingPassword(room.id);
+      navigate(`/room/${room.id}`);
+    };
+    const onJoined = ({ id }) => {
+      savePendingPassword(id);
+      navigate(`/room/${id}`);
+    };
+    const onCreateError = (data) => enqueueSnackbar(data.message, { variant: "error" });
+    const onJoinError = (data) => enqueueSnackbar(data.message, { variant: "error" });
+    socket.on("your-nickname", setMyNickname);
+    socket.on("fetchRooms", onRooms);
+    socket.on("deleteRoom", onDelete);
+    socket.on("roomCreated", onRoom);
+    socket.on("roomJoined", onJoined);
+    socket.on("roomCreateError", onCreateError);
+    socket.on("roomJoinError", onJoinError);
+    socket.emit("requestRooms");
+    socket.emit("request-nickname", { userIdToken: localStorage.getItem("authToken") });
     return () => {
-      socket.off('your-nickname');
-      socket.off('fetchRooms');
-      socket.off('deleteRoom');
-      socket.off('roomCreated');
-      socket.off('roomJoinError');
-      socket.off('roomCreateError');
-      socket.disconnect();
+      socket.off("your-nickname", setMyNickname);
+      socket.off("fetchRooms", onRooms);
+      socket.off("deleteRoom", onDelete);
+      socket.off("roomCreated", onRoom);
+      socket.off("roomJoined", onJoined);
+      socket.off("roomCreateError", onCreateError);
+      socket.off("roomJoinError", onJoinError);
     };
+  }, [navigate, socket, currentUser]);
 
-  }, [navigate]);
-
-  const handleCreateRoom = () => {
-    const userIdToken = localStorage.getItem("authToken");
-    const roomData = {
-      userIdToken,
-      roomName,
-      isPrivate,
-      password: isPrivate ? password : null,
-    };
-    socket.emit("createRoom", roomData);
+  const handleCreateRoom = (event) => {
+    event.preventDefault();
+    sessionStorage.setItem("pending-created-room-password", isPrivate ? password : "");
+    socket.emit("createRoom", { userIdToken: localStorage.getItem("authToken"), roomName: roomName.trim() || `${myNickname || "Player"}'s room`, isPrivate, password: isPrivate ? password : null });
     setIsModalOpen(false);
   };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      localStorage.removeItem('authToken');
-      navigate('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
+  const handleJoinRoom = (roomId = joinRoomId) => {
+    if (!roomId.trim()) {
+      enqueueSnackbar("Enter a room code first.", { variant: "warning" });
+      return;
     }
-  };
-
-  const handleJoinRoom = (param) => {
-    const userIdToken = localStorage.getItem("authToken");
-
-    const joinData = {
-      roomId: param?param:joinRoomId,
-      password: joinPassword,
-      userIdToken,
-    };
-    socket.emit("joinRoom", joinData);
+    sessionStorage.setItem(`room-password:${roomId.trim()}`, joinPassword);
+    socket.emit("joinRoom", { roomId: roomId.trim(), password: joinPassword, userIdToken: localStorage.getItem("authToken") });
     setIsJoinModalOpen(false);
   };
+  const handleLogout = async () => { try { await signOut(); navigate("/signin"); } catch (error) { console.error("Error signing out:", error); } };
+
+  const dialog = (title, onClose, content) => (
+    <div className="game-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="game-modal" role="dialog" aria-modal="true" aria-label={title}>
+        <button className="game-modal-close" onClick={onClose} aria-label="Close">×</button>
+        <span className="eyebrow">DOODLE PARTY</span><h2>{title}</h2>{content}
+      </section>
+    </div>
+  );
 
   return (
-    <div
-      className={`${theme === "light" ? "bg-[#e6e6e6] text-black" : "bg-black text-white"
-        } h-screen flex justify-center items-center p-4`}
-      style={{ fontFamily: "Orbitron" }}
-    >
+    <main className={`lobby-page ${theme === "light" ? "lobby-light" : "lobby-dark"}`}>
       <SnackbarProvider />
-      {/* Main container */}
-      <div
-        className={`${theme === "light" ? "bg-[#f4f4f4] shadow-md" : "bg-[#1a1a1a] border-gray-700"
-          } w-[80vw] h-[90vh] grid grid-cols-1 md:grid-cols-[70%,30%] gap-6 border p-6 rounded-lg`}
-        style={{
-          background: `${theme === "light" ? "#f4f4f4" : "linear-gradient(145deg, #1b1b1b, #0e0e0e)"
-            }`,
-        }}
-      >
-        <div className="flex flex-col p-4">
-          <h2
-            className={`text-2xl font-semibold mb-4 ${theme === "light" ? "text-black" : "text-[#f4f4f4]"
-              }`}
-          >
-            ROOMS
-          </h2>
-          <div className="space-y-6">
-            {rooms.map((room) => (
-              room.isPrivate ? null : (
-                <div
-                  key={room.id}
-                  className={`${theme === "light" ? "bg-white" : "bg-[#2b2b2b]"
-                    } p-6 rounded-lg shadow-md border-2 border-[#e0e0e0]`}
-                >
-                  <div className="space-y-3">
-                    <p className="text-gray-500 text-sm">
-                      <strong className="text-indigo-500">Room ID:</strong> {room.id}
-                    </p>
-                    <p className="text-gray-500 text-sm">
-                      <strong className="text-indigo-500">Creator:</strong> {room.creator}
-                    </p>
-                    <p className="text-gray-500 text-sm">
-                      <strong className="text-indigo-500">Number of Users:</strong> {room.users.length}
-                    </p>
-                  </div>
-                  <div className="mt-4">
-                    <button
-                      onClick={() => handleJoinRoom(room.id)}
-                      className="bg-indigo-600 text-white rounded-full px-5 py-2 w-32 hover:bg-indigo-500 active:scale-95 active:bg-indigo-700 transition duration-200">
-                      Join
-                    </button>
-
-                  </div>
-                </div>)
-            ))}
-          </div>
-
-        </div>
-
-        <div className="flex flex-col justify-between h-full p-4">
-          <div className="flex flex-col justify-center flex-1 items-center space-y-4">
-            <button
-              className={`w-[70%] p-4 ${theme === "light" ? "bg-indigo-600 hover:bg-indigo-800 text-white" : "bg-indigo-600 hover:bg-indigo-800 text-white"} rounded-md active:scale-95 active:bg-indigo-700 transition duration-300`}
-              onClick={() => setIsModalOpen(true)}
-            >
-              Create Room
-            </button>
-
-            <button
-              className={`w-[70%] p-4 ${theme === "light" ? "bg-white border-2 border-indigo-600" : "bg-[#2b2b2b] hover:bg-[#3a3a3a]"} rounded-md active:scale-95 active:bg-gray-300 transition duration-300`}
-              onClick={() => setIsJoinModalOpen(true)}
-            >
-              Join Room
-            </button>
-
-          </div>
-
-          <div className="flex flex-col space-y-4 items-center">
-
-            {auth.currentUser && auth.currentUser.isAnonymous ? null : (
-              <button
-                className={`w-[70%] p-4 ${theme === "light" ? "bg-[#e0e0e0] hover:bg-[#b5b5b5]" : "bg-[#2b2b2b] hover:bg-[#3a3a3a]"} rounded-md active:scale-95 active:bg-gray-300 transition duration-300`}
-                onClick={() => setIsProfileModalOpen(true)}
-              >
-                View Profile
-              </button>
-
-            )}
-
-
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className={`w-[70%] p-4 ${theme === "light" ? "bg-[#e0e0e0] hover:bg-[#b5b5b5]" : "bg-[#2b2b2b] hover:bg-[#3a3a3a]"} rounded-md active:scale-95 active:bg-gray-300 transition duration-300`}
-            >
-              Settings
-            </button>
-
-            {
-              currentUser ? (
-                <button
-                  className={`w-[70%] p-4 ${theme === "light" ? "bg-[#e0e0e0] hover:bg-[#b5b5b5]" : "bg-[#2b2b2b] hover:bg-[#3a3a3a]"} rounded-md active:scale-95 active:bg-gray-300 transition duration-300`}
-                  onClick={handleLogout}
-                >
-                  Logout
-                </button>
-
-              ) : null
-            }
-          </div>
-        </div>
+      <header className="lobby-topbar"><a className="brand-mark" href="/main"><span className="brand-icon">✎</span><span>guess<span className="brand-color">my</span>doodle</span></a>
+        <div className="topbar-right"><span className="online-pill"><i /> {rooms.reduce((total, room) => total + (room.playerCount || room.users.length), 0)} PLAYING</span><button className="profile-chip" onClick={() => setIsProfileModalOpen(true)}><span className="avatar">{(myNickname || "G").slice(0, 1).toUpperCase()}</span><span>{myNickname || "Guest artist"}</span><span className="chevron">⌄</span></button></div>
+      </header>
+      <div className="lobby-content">
+        <section className="welcome-copy"><div className="eyebrow"><span>✦</span> THE PARTY IS ON</div><h1>Draw it.<br/><span>Guess it.</span><br/>Giggle about it.</h1><p>Grab your friends and turn questionable doodles into unforgettable game nights.</p>
+          <div className="welcome-actions"><button className="primary-action" onClick={() => setIsModalOpen(true)}><span>＋</span> Create a room <span className="action-arrow">↗</span></button><button className="secondary-action" onClick={() => setIsJoinModalOpen(true)}>Join with a code <span>→</span></button></div>
+          <div className="quick-facts"><span>🎨 <b>1</b> doodler</span><span>👀 <b>Up to 6</b> players</span><span>⏱️ <b>60 sec</b> per turn</span></div>
+        </section>
+        <section className="art-card" aria-label="A playful doodle illustration"><div className="art-spark spark-one">✦</div><div className="art-spark spark-two">✧</div><div className="art-label">TODAY'S MASTERPIECE <span>✦</span></div><div className="doodle-scene"><div className="sun-face">☀</div><div className="cloud cloud-one">☁</div><div className="cloud cloud-two">☁</div><div className="rainbow"><i/><i/><i/><i/></div><div className="hill hill-back"/><div className="hill hill-front"/><div className="flower flower-one">✿</div><div className="flower flower-two">✿</div></div><div className="art-sticker sticker-top">not bad!<span>♡</span></div><div className="art-sticker sticker-bottom">10/10 would guess again</div><div className="art-footer"><span><b>✨</b> made with questionable talent</span><span className="art-dots">● ● ●</span></div></section>
+        <section className="rooms-section"><div className="section-heading"><div><span className="eyebrow">JUMP RIGHT IN</span><h2>Rooms in the making <span>🎉</span></h2></div><button className="text-action" onClick={() => setIsJoinModalOpen(true)}>Have a room code? <b>Join here →</b></button></div>
+          {rooms.length ? <div className="room-grid">{rooms.filter((room) => !room.isPrivate).map((room) => <article className="room-card" key={room.id}><div className="room-card-icon">🎨</div><div className="room-info"><h3>{room.name || "A doodle room"}</h3><p>Hosted by {room.creator}</p><span className="player-count">👥 {room.playerCount ?? room.users.length}/{room.maxPlayers || 6} seats</span></div><button className="room-join" onClick={() => handleJoinRoom(room.id)}>Join <span>→</span></button></article>)}</div> : <div className="empty-rooms"><span className="empty-icon">🖍️</span><div><b>It’s a little quiet in here...</b><p>Be the first to start a room. Your friends and their masterpieces are one invite away.</p></div><button onClick={() => setIsModalOpen(true)}>Start a room <span>→</span></button></div>}
+        </section>
       </div>
+      <footer className="lobby-footer"><span>GOOD ART IS OPTIONAL. GOOD TIMES AREN'T.</span><div><button onClick={() => setIsSettingsModalOpen(true)}>⚙ Settings</button><button onClick={handleLogout}>Log out ↗</button></div></footer>
 
-
-      {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div
-            className={`${theme === "light" ? "bg-[#f4f4f4] text-black" : "bg-[#1a1a1a] text-white"
-              } p-6 rounded-lg w-[90vw] md:w-[40vw] text-center`}
-            style={{
-              boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
-              transform: "scale(0.95)",
-              transition: "transform 0.3s ease-in-out",
-            }}
-          >
-
-
-
-            <h1 className="text-4xl font-bold p-4">Profile</h1>
-            <div className="flex justify-center">
-
-              <img className="w-40 h-40 rounded-full" src={currentUser ? auth.currentUser.photoURL : 'https://avatars.githubusercontent.com/u/117569459?v=4'} />
-
-            </div>
-            <h2 className="text-2xl font-bold p-4">{myNickname}</h2>
-
-            <div className="flex justify-center space-x-4">
-              <button
-                className={`p-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-800 transition duration-300 w-40`}
-                onClick={() => setIsProfileModalOpen(false)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isSettingsModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div
-            className={`${theme === "light" ? "bg-[#f4f4f4] text-black" : "bg-[#1a1a1a] text-white"
-              } p-6 rounded-lg w-[90vw] md:w-[40vw] text-center`}
-            style={{
-              boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
-              transform: "scale(0.95)",
-              transition: "transform 0.3s ease-in-out",
-            }}
-          >
-            <h2 className="text-2xl font-semibold mb-4">Settings</h2>
-            <div className="mt-20 mb-20 flex items-center justify-center">
-              <div className="text-xl mr-4">Set theme:</div>
-              <select
-                id="theme"
-                value={theme}
-                className={`p-3 ${theme === "light"
-                  ? "bg-white border-gray-400 text-black"
-                  : "bg-[#2b2b2b] border-gray-600 text-white"
-                  } rounded focus:outline-none border-gray-600 shadow-md transition duration-300 border`}
-                onChange={(e) => changeTheme(e.target.value)}
-              >
-                <option value="" disabled>
-                  Select theme
-                </option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </div>
-            <div className="flex justify-center space-x-4">
-              <button
-                className={`p-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-800 transition duration-300 w-40`}
-                onClick={() => setIsSettingsModalOpen(false)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal for Creating a Room */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div
-            className={`${theme === "light" ? "bg-[#f4f4f4] text-black" : "bg-[#1a1a1a] text-white"
-              } p-6 rounded-lg w-[90vw] md:w-[40vw]`}
-            style={{
-              boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
-              transform: "scale(0.95)",
-              transition: "transform 0.3s ease-in-out",
-            }}
-          >
-            <h2 className="text-2xl font-semibold mb-4">Create a Room</h2>
-            <input
-              className={`w-full p-3 mb-4 rounded ${theme === "light"
-                ? "bg-white border border-gray-400 text-black"
-                : "bg-[#2b2b2b] border border-gray-600 text-white"
-                } focus:outline-none focus:border-gray-600 transition duration-300`}
-              type="text"
-              placeholder="Room Name"
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-            />
-            <div className="mb-4 flex items-center">
-              <input
-                type="checkbox"
-                id="isPrivate"
-                className="mr-2"
-                checked={isPrivate}
-                onChange={() => setIsPrivate((prev) => !prev)}
-              />
-              <label htmlFor="isPrivate" className="cursor-pointer">
-                Private Room
-              </label>
-            </div>
-            {isPrivate && (
-              <input
-                className={`w-full p-3 mb-4 rounded ${theme === "light"
-                  ? "bg-white border border-gray-400 text-black"
-                  : "bg-[#2b2b2b] border border-gray-600 text-white"
-                  } focus:outline-none focus:border-gray-600 transition duration-300`}
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            )}
-            <div className="flex justify-center space-x-4">
-              <button
-                className={`p-2 ${theme === "light" ? "bg-gray-200" : "bg-[#2b2b2b]"
-                  } rounded-md hover:bg-gray-300 transition duration-300`}
-                onClick={handleCreateRoom}
-              >
-                Create
-              </button>
-              <button
-                className={`p-2 ${theme === "light" ? "bg-gray-200" : "bg-[#2b2b2b]"
-                  } rounded-md hover:bg-gray-300 transition duration-300`}
-                onClick={() => setIsModalOpen(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal for Joining a Room */}
-      {isJoinModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div
-            className={`${theme === "light" ? "bg-[#f4f4f4] text-black" : "bg-[#1a1a1a] text-white"
-              } p-6 rounded-lg w-[90vw] md:w-[40vw]`}
-            style={{
-              boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
-              transform: "scale(0.95)",
-              transition: "transform 0.3s ease-in-out",
-            }}
-          >
-            <h2 className="text-2xl font-semibold mb-4">Join a Room</h2>
-            <input
-              className={`w-full p-3 mb-4 rounded ${theme === "light"
-                ? "bg-white border border-gray-400 text-black"
-                : "bg-[#2b2b2b] border border-gray-600 text-white"
-                } focus:outline-none focus:border-gray-600 transition duration-300`}
-              type="text"
-              placeholder="Room ID"
-              value={joinRoomId}
-              onChange={(e) => setJoinRoomId(e.target.value)}
-            />
-            <input
-              className={`w-full p-3 mb-4 rounded ${theme === "light"
-                ? "bg-white border border-gray-400 text-black"
-                : "bg-[#2b2b2b] border border-gray-600 text-white"
-                } focus:outline-none focus:border-gray-600 transition duration-300`}
-              type="password"
-              placeholder="Password"
-              value={joinPassword}
-              onChange={(e) => setJoinPassword(e.target.value)}
-            />
-            <div className="flex justify-center space-x-4">
-              <button
-                className={`p-2 ${theme === "light" ? "bg-gray-200" : "bg-[#2b2b2b]"
-                  } rounded-md hover:bg-gray-300 transition duration-300`}
-                onClick={handleJoinRoom}
-              >
-                Join
-              </button>
-              <button
-                className={`p-2 ${theme === "light" ? "bg-gray-200" : "bg-[#2b2b2b]"
-                  } rounded-md hover:bg-gray-300 transition duration-300`}
-                onClick={() => setIsJoinModalOpen(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      {isModalOpen && dialog("Create your room", () => setIsModalOpen(false), <form onSubmit={handleCreateRoom}><label className="field-label" htmlFor="room-name">Give your room a name</label><input id="room-name" className="game-input" placeholder="The doodle den" value={roomName} onChange={(event) => setRoomName(event.target.value)} autoFocus/><label className="toggle-row"><span><b>Private party</b><small>Only friends with the code can join</small></span><input type="checkbox" checked={isPrivate} onChange={() => setIsPrivate((value) => !value)}/></label>{isPrivate && <><label className="field-label" htmlFor="room-password">Room password</label><input id="room-password" className="game-input" type="password" placeholder="Make it a secret" value={password} onChange={(event) => setPassword(event.target.value)}/></>}<button className="primary-action modal-action" type="submit">Let's play <span>→</span></button></form>)}
+      {isJoinModalOpen && dialog("Got a room code?", () => setIsJoinModalOpen(false), <form onSubmit={(event) => { event.preventDefault(); handleJoinRoom(); }}><label className="field-label" htmlFor="room-code">Room code</label><input id="room-code" className="game-input" placeholder="e.g. A8F23B9C" value={joinRoomId} onChange={(event) => setJoinRoomId(event.target.value.toUpperCase())} autoFocus/><label className="field-label" htmlFor="join-password">Password <span className="optional-label">(if needed)</span></label><input id="join-password" className="game-input" type="password" placeholder="Room password" value={joinPassword} onChange={(event) => setJoinPassword(event.target.value)}/><button className="primary-action modal-action" type="submit">Hop in <span>→</span></button></form>)}
+      {isProfileModalOpen && dialog("Your artist card", () => setIsProfileModalOpen(false), <div className="profile-dialog"><span className="avatar avatar-large">{(myNickname || "G").slice(0, 1).toUpperCase()}</span><b>{myNickname || "Guest artist"}</b><span>Here to draw, guess & have fun.</span></div>)}
+      {isSettingsModalOpen && dialog("Make it yours", () => setIsSettingsModalOpen(false), <div><label className="field-label" htmlFor="theme-select">Choose your vibe</label><select id="theme-select" className="game-input" value={theme} onChange={(event) => changeTheme(event.target.value)}><option value="light">Sunny side up</option><option value="dark">Late night doodle</option></select><button className="primary-action modal-action" onClick={() => setIsSettingsModalOpen(false)}>All set <span>✓</span></button></div>)}
+    </main>
   );
 }
 

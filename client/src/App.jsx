@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import SignIn from './components/SignIn';
 import Main from './components/Main';
-import TakeNewUserInfo from './components/TakeNewUserInfo';
 import Room from './components/Room';
 import { AuthProvider } from './lib/AuthProvider';
 import PrivateRoute from './PrivateRoute'; // Import your PrivateRoute component
@@ -15,11 +14,11 @@ function App() {
       <AuthProvider>
       <SocketProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/signin" />} /> {/* Redirect root path to /signin */}
+          <Route path="/" element={<Navigate to="/main" replace />} />
           <Route path="/signin" element={<PublicRoute element={<SignIn />} />} /> {/* Public route for sign-in */}
-          <Route path="/newuserinfo" element={<PrivateRoute element={<TakeNewUserInfo />} />} />
           <Route path="/room/:roomId" element={<PrivateRoute element={<Room />} />} />
           <Route path="/main" element={<PrivateRoute element={<Main />} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </SocketProvider>
       </AuthProvider>

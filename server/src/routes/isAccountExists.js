@@ -3,13 +3,15 @@ const User = require("../models/UserModel");
 const verifyIdToken = require("../services/firebase");
 
 Router.post("/authentication", async (req, res) => {
-  const userToken = req.headers.authorization.split(" ")[1];
   try {
+    const authorization = req.headers.authorization || "";
+    const userToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    if (!userToken) return res.status(401).json({ success: false, message: "Authentication required" });
     const decodedToken = await verifyIdToken(userToken);
     if (decodedToken?.uid) {
       if (decodedToken.email) {
-        const user = await User.find({ email: decodedToken.email });
-        if (user.length) {
+        const user = await User.findOne({ email: decodedToken.email }).lean();
+        if (user) {
           res.status(200).send({ success: true, isSignedIn: true });
         } else {
           res.status(200).send({ success: true, isSignedIn: false });
@@ -21,8 +23,7 @@ Router.post("/authentication", async (req, res) => {
       res.status(401).json({ success: false, message: "INVALID TOKEN!" });
     }
   } catch (error) {
-    console.log(error);
-    res.status(401).send({ success: false, message: "Authentication Failed!" });
+    res.status(401).send({ success: false, message: "Authentication failed" });
   }
 });
 

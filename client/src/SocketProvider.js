@@ -1,22 +1,20 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, { createContext, useContext, useEffect, useMemo } from "react";
+import { io } from "socket.io-client";
+import { backendUrl } from "./lib/backendUrl";
 
-const SocketContext = createContext();
+const SocketContext = createContext(null);
 
-export const SocketProvider = ({ children }) => {
-    const [socket, setSocket] = useState(null);
+export function SocketProvider({ children }) {
+  const socket = useMemo(() => io(backendUrl, {
+    autoConnect: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    timeout: 10000,
+    transports: ["websocket", "polling"],
+  }), []);
 
-    useEffect(() => {
-        const socketInstance =  io("https://guessmydoodle-2.onrender.com");
- // Adjust URL as needed
-        setSocket(socketInstance);
-
-        return () => {
-            socketInstance.disconnect();
-        };
-    }, []);
-
-    return <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>;
-};
+  useEffect(() => () => socket.disconnect(), [socket]);
+  return <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>;
+}
 
 export const useSocket = () => useContext(SocketContext);
